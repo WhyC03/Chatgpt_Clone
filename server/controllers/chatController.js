@@ -1,9 +1,12 @@
 // controllers/chatController.js
+require('dotenv').config();
 const { OpenAI } = require('openai');
 const { v4: uuidv4 } = require('uuid');
 const Chat = require('../models/chat');
 const cloudinary = require('../utils/cloudinary');
-require('dotenv').config();
+const multer = require('multer');
+const fs = require('fs');
+
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -11,8 +14,8 @@ const openai = new OpenAI({
 
 /**
  * POST /api/chat/send
- * Send a message (optionally with an image) and get AI response.
- * If `image` is a base64 string, we upload it to Cloudinary automatically.
+ * Send a message (optionally with an image URL) and get AI response.
+ * This endpoint only accepts JSON data with image URLs (not file uploads).
  */
 exports.sendMessage = async (req, res) => {
   try {
@@ -21,7 +24,7 @@ exports.sendMessage = async (req, res) => {
       chatId,
       userId,
       model = 'gpt-3.5-turbo',
-      image, // optional: base64 or URL
+      image, // optional: URL to image
     } = req.body;
 
     if (!message || !userId) {
@@ -34,16 +37,8 @@ exports.sendMessage = async (req, res) => {
     const existingChat = await Chat.findOne({ chatId: newChatId });
     const messages = existingChat?.messages || [];
 
-    // If image is provided and looks like base64, upload it
-    let imageUrl = null;
-    if (image && image.startsWith('data:')) {
-      const upload = await cloudinary.uploader.upload(image, {
-        folder: 'chat_images',
-      });
-      imageUrl = upload.secure_url;
-    } else if (image && image.startsWith('http')) {
-      imageUrl = image;
-    }
+    // Use the image URL directly (it should already be a Cloudinary URL)
+    const imageUrl = image || null;
 
     // Push user's message
     messages.push({
@@ -106,20 +101,30 @@ exports.sendMessage = async (req, res) => {
 
 /**
  * POST /api/chat/upload
- * (Optional) Separate endpoint just to upload an image and get URL back.
- * Use only if you want to upload first and then send the URL in /send.
+ * Upload an image file to Cloudinary and return the URL.
+ * This endpoint accepts multipart form data with an image file.
  */
 exports.uploadImage = async (req, res) => {
   try {
-    const { image } = req.body;
-
-    if (!image) {
-      return res.status(400).json({ success: false, error: 'No image provided' });
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No image file provided' });
     }
 
-    const result = await cloudinary.uploader.upload(image, {
+    console.log('Uploading file to Cloudinary:', req.file.originalname);
+
+    // Upload the file to Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
       folder: 'chat_images',
     });
+
+    // Clean up the temporary file
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (deleteError) {
+      console.error('Warning: Could not delete temporary file:', deleteError);
+    }
+
+    console.log('Image uploaded successfully:', result.secure_url);
 
     res.json({
       success: true,
@@ -127,8 +132,18 @@ exports.uploadImage = async (req, res) => {
       publicId: result.public_id,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: 'Upload failed' });
+    console.error('Error uploading image:', err);
+    
+    // Clean up the temporary file even if upload fails
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (deleteError) {
+        console.error('Warning: Could not delete temporary file:', deleteError);
+      }
+    }
+    
+    res.status(500).json({ success: false, error: "Upload failed" });
   }
 };
 
@@ -136,24 +151,24 @@ exports.uploadImage = async (req, res) => {
  * GET /api/chat/history/:userId
  * Returns list of chat sessions for the user (for your drawer list)
  */
-exports.getChatHistory = async (req, res) => {
+exports.getUserChats = async (req, res) => {
   try {
     const { userId } = req.params;
     const chats = await Chat.find({ userId })
-      .select('chatId model createdAt messages')
+      .select("chatId model createdAt messages")
       .sort({ createdAt: -1 });
 
     const formatted = chats.map((c) => ({
       chatId: c.chatId,
       model: c.model,
       createdAt: c.createdAt,
-      lastMessage: c.messages?.[c.messages.length - 1]?.content || '',
+      lastMessage: c.messages?.[c.messages.length - 1]?.content || "",
     }));
 
     res.json({ success: true, chats: formatted });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, error: 'Failed to fetch history' });
+    res.status(500).json({ success: false, error: "Failed to fetch history" });
   }
 };
 
@@ -167,12 +182,12 @@ exports.getChatById = async (req, res) => {
     const chat = await Chat.findOne({ chatId });
 
     if (!chat) {
-      return res.status(404).json({ success: false, error: 'Chat not found' });
+      return res.status(404).json({ success: false, error: "Chat not found" });
     }
 
     res.json({ success: true, chat });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, error: 'Failed to fetch chat' });
+    res.status(500).json({ success: false, error: "Failed to fetch chat" });
   }
 };
