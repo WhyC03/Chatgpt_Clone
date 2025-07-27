@@ -1,47 +1,29 @@
 # ChatGPT Clone
 
-A full-stack ChatGPT clone built with Flutter (frontend) and Node.js (backend), featuring real-time chat functionality, image support, and chat history management.
+A full-stack ChatGPT clone built with Flutter (frontend) and Node.js (backend), featuring real-time chat functionality, AI model selection, image support with compression, and comprehensive chat history management.
 
 ## 🚀 Features
 
 ### Frontend (Flutter)
-- **Modern UI/UX**: Clean, responsive design inspired by ChatGPT
+- **Modern UI/UX**: Clean, responsive design inspired by ChatGPT with Material Design 3
 - **Real-time Chat**: Send and receive messages with AI responses
-- **Image Support**: Upload and send images in conversations
+- **AI Model Selection**: Dynamic model switching with visual selection dialog
+- **Image Support**: Upload, compress, and send images in conversations
 - **Chat History**: Persistent chat history with drawer navigation
 - **Smart Sorting**: Chat history sorted by most recent conversations
 - **Fresh Start**: Clean interface on app launch with optional chat loading
-- **Cross-platform**: Works on Android, iOS, and web
+- **Cross-platform**: Works on Android and iOS
+- **Typing Indicators**: Visual feedback during AI response generation
 
 ### Backend (Node.js)
 - **RESTful API**: Express.js server with structured endpoints
-- **AI Integration**: OpenAI API integration for intelligent responses
-- **Image Processing**: Cloudinary integration for image uploads
+- **AI Integration**: OpenAI API integration with multiple model support
+- **Image Processing**: Cloudinary integration with automatic image optimization
 - **Database**: MongoDB with Mongoose for data persistence
 - **Chat Management**: Full CRUD operations for chats and messages
+- **Model Management**: Dynamic model switching and availability checking
+- **File Upload**: Multer with Cloudinary storage for image handling
 
-## 📱 Screenshots
-
-*[Add screenshots of your app here]*
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **Framework**: Flutter 3.7.2+
-- **State Management**: Provider
-- **HTTP Client**: http package
-- **Image Picker**: image_picker
-- **UI Components**: Material Design 3
-- **Icons**: flutter_svg
-
-### Backend
-- **Runtime**: Node.js
-- **Framework**: Express.js
-- **Database**: MongoDB with Mongoose
-- **AI Service**: OpenAI API
-- **Image Storage**: Cloudinary
-- **File Upload**: Multer
-- **CORS**: Enabled for cross-origin requests
 
 ## 📋 Prerequisites
 
@@ -50,7 +32,7 @@ Before running this project, make sure you have:
 - **Flutter SDK** (3.7.2 or higher)
 - **Node.js** (v16 or higher)
 - **MongoDB** (local or cloud instance)
-- **OpenAI API Key**
+- **OpenAI API Key** (with access to desired models)
 - **Cloudinary Account** (for image uploads)
 
 ## 🔧 Installation & Setup
@@ -117,9 +99,6 @@ flutter run
 # For iOS
 flutter run -d ios
 
-# For web
-flutter run -d chrome
-```
 
 ## 📁 Project Structure
 
@@ -132,7 +111,7 @@ chatgpt_clone/
 │   │   ├── chat_message_model.dart
 │   │   └── message_model.dart
 │   ├── provider/                 # State management
-│   │   └── chat_provider.dart
+│   │   └── chat_provider.dart    # Main chat logic and API calls
 │   ├── screens/                  # UI screens
 │   │   ├── chat_screen.dart
 │   │   └── onboarding_screen.dart
@@ -140,7 +119,8 @@ chatgpt_clone/
 │   │   ├── app_colors.dart
 │   │   └── app_theme.dart
 │   └── widgets/                  # Reusable widgets
-│       └── chat_drawer.dart
+│       ├── chat_drawer.dart
+│       └── model_selection_dialog.dart
 ├── server/
 │   ├── controllers/              # API controllers
 │   │   └── chatController.js
@@ -150,11 +130,16 @@ chatgpt_clone/
 │   │   └── chatRoutes.js
 │   ├── utils/                    # Utilities
 │   │   └── cloudinary.js
+│   ├── uploads/                  # Temporary upload directory
 │   ├── index.js                  # Server entry point
 │   └── package.json
-└── assets/                       # App assets
-    ├── openai_icon.png
-    └── openai.svg
+├── assets/                       # App assets
+│   ├── openai_icon.png
+│   └── openai.svg
+└── test/                         # Test files
+    ├── test_model_responses.js
+    ├── test_models.js
+    └── test_upload.js
 ```
 
 ## 🔌 API Endpoints
@@ -163,6 +148,9 @@ chatgpt_clone/
 - `GET /api/chat/history/:userId` - Get user's chat history
 - `GET /api/chat/:chatId` - Get specific chat messages
 - `POST /api/chat/send` - Send a new message
+- `POST /api/chat/upload` - Upload image to Cloudinary
+- `GET /api/chat/models` - Get available AI models
+- `POST /api/chat/set-model` - Set current AI model
 
 ### Request/Response Examples
 
@@ -173,7 +161,7 @@ POST /api/chat/send
   "message": "Hello, how are you?",
   "userId": "user123",
   "chatId": "optional-chat-id",
-  "image": "optional-base64-image"
+  "image": "optional-cloudinary-url"
 }
 ```
 
@@ -186,67 +174,82 @@ POST /api/chat/send
 }
 ```
 
+**Get Available Models:**
+```json
+GET /api/chat/models
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "currentModel": "gpt-3.5-turbo",
+  "models": [
+    {
+      "id": "gpt-3.5-turbo",
+      "name": "GPT-3.5 Turbo",
+      "description": "Most capable GPT-3.5 model",
+      "type": "chat"
+    },
+    {
+      "id": "gpt-4",
+      "name": "GPT-4",
+      "description": "Most capable GPT-4 model",
+      "type": "chat"
+    }
+  ]
+}
+```
+
 ## 🎯 Key Features Explained
+
+### AI Model Selection
+- Dynamic model fetching from OpenAI API
+- Visual model selection dialog with descriptions
+- Real-time model switching without app restart
+- Automatic model availability checking
 
 ### Chat History Management
 - Chats are automatically sorted by timestamp (most recent first)
 - Fresh start on app launch - no automatic chat loading
 - Manual chat loading through drawer navigation
-- Persistent storage in MongoDB
+- Persistent storage in MongoDB with proper indexing
 
-### Image Support
-- Upload images from device gallery
-- Base64 encoding for transmission
+### Image Support & Compression
+- Upload images from device gallery or camera
+- Automatic image compression for better performance
 - Cloudinary integration for cloud storage
-- Image display in chat messages
+- Base64 encoding for transmission
+- Image display in chat messages with proper sizing
 
 ### State Management
 - Provider pattern for reactive UI updates
 - Centralized chat state management
 - Automatic UI updates on data changes
+- Loading states and error handling
 
-## 🚀 Deployment
+### Error Handling
+- Comprehensive error handling for network issues
+- User-friendly error messages
+- Image size validation and compression
+- API error responses with detailed information
 
-### Backend Deployment
-1. Deploy to platforms like Heroku, Railway, or DigitalOcean
-2. Set environment variables in your hosting platform
-3. Ensure MongoDB connection is accessible
 
-### Frontend Deployment
-1. Build the Flutter app:
-   ```bash
-   flutter build web  # For web
-   flutter build apk  # For Android
-   flutter build ios  # For iOS
-   ```
-2. Deploy to Firebase Hosting, Netlify, or app stores
+## 🔧 Configuration
 
-## 🤝 Contributing
+### Environment Variables
+- `PORT`: Server port (default: 5000)
+- `MONGODB_URI`: MongoDB connection string
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `CLOUDINARY_CLOUD_NAME`: Cloudinary cloud name
+- `CLOUDINARY_API_KEY`: Cloudinary API key
+- `CLOUDINARY_API_SECRET`: Cloudinary API secret
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
 
-- OpenAI for providing the AI API
-- Flutter team for the amazing framework
-- ChatGPT for UI/UX inspiration
-
-## 📞 Support
-
-If you encounter any issues or have questions:
-
-1. Check the [Issues](../../issues) page
-2. Create a new issue with detailed description
-3. Contact the maintainers
-
----
-
-**Note**: This is a clone project for educational purposes. Please respect OpenAI's terms of service and usage policies when using their API.
+**Note**: This is a clone project for educational purposes. Please respect OpenAI's terms of service and usage policies when using their API. Ensure you have proper API access and rate limits configured for production use.

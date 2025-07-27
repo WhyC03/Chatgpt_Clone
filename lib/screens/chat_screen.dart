@@ -43,7 +43,7 @@ class _ChatScreenState extends State<ChatScreen> {
   //   ChatMessage(
   //     role: 'assistant',
   //     content:
-  //         'Voldemort is the main antagonist in the Harry Potter series. The "OpenAI" name, the OpenAI logo, the "ChatGPT" and “GPT” brands, and other OpenAI trademarks, are property of OpenAI. These guidelines are intended to help our partners, resellers, customers, developers, consultants, publishers, and any other third parties understand how to use and display our trademarks and copyrighted work in their own assets and materials.',
+  //         'Voldemort is the main antagonist in the Harry Potter series. The "OpenAI" name, the OpenAI logo, the "ChatGPT" and "GPT" brands, and other OpenAI trademarks, are property of OpenAI. These guidelines are intended to help our partners, resellers, customers, developers, consultants, publishers, and any other third parties understand how to use and display our trademarks and copyrighted work in their own assets and materials.',
   //     image: null,
   //     timestamp: DateTime.now().subtract(Duration(minutes: 2)),
   //   ),
@@ -63,9 +63,26 @@ class _ChatScreenState extends State<ChatScreen> {
   // ];
 
   TextEditingController controller = TextEditingController();
+  ScrollController _scrollController = ScrollController();
   bool _isSending = false;
 
   File? _uploadedImage;
+
+  // Auto-scroll to the bottom of the chat
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  // Dismiss keyboard
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
@@ -138,6 +155,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _isSending = true);
 
+    // Dismiss keyboard immediately when send is tapped
+    _dismissKeyboard();
+
     try {
       final chatProvider = Provider.of<ChatProvider>(context, listen: false);
 
@@ -186,6 +206,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
       controller.clear(); // Clear the text input
       _uploadedImage = null; // Clear the selected image
+
+      // Auto-scroll to the bottom after sending message
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
     } catch (e) {
       log('Error sending message: $e');
       String errorMessage = 'Failed to send message';
@@ -216,6 +241,37 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+
+    // Add listener to auto-scroll when new messages are added
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+      chatProvider.addListener(() {
+        // Auto-scroll to bottom when messages change
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      });
+
+      // Fetch available models on app start
+      chatProvider.fetchAvailableModels();
+    });
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    _scrollController.dispose(); // Dispose scroll controller
+    // Refresh chat history when leaving the chat screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+      chatProvider.fetchChatHistory();
+    });
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBgColor,
@@ -233,6 +289,59 @@ class _ChatScreenState extends State<ChatScreen> {
           'ChatGPT',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
+        actions: [
+          Consumer<ChatProvider>(
+            builder: (context, chatProvider, child) {
+              return PopupMenuButton<String>(
+                color: Colors.black,
+                icon: Icon(Icons.settings, color: Colors.white),
+                tooltip: 'Select Model',
+                onSelected: (value) {
+                  if (value == 'select_model') {
+                    chatProvider.showModelSelectionDialog(context);
+                  }
+                },
+                itemBuilder:
+                    (context) => [
+                      PopupMenuItem(
+                        value: 'select_model',
+                        child: Row(
+                          children: [
+                            // Icon(Icons.settings, size: 20),
+                            // SizedBox(width: 8),
+                            Text('Change Model'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        enabled: false,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Current Model:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              chatProvider.currentModel,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+              );
+            },
+          ),
+          SizedBox(width: 8),
+        ],
       ),
       drawer: ChatDrawer(),
       body: Column(
@@ -261,6 +370,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 return Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: ListView.builder(
+                    controller: _scrollController, // Add scroll controller
                     itemCount: messages.length,
                     itemBuilder: (BuildContext context, int index) {
                       final message = messages[index];
@@ -499,17 +609,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    controller.dispose();
-    // Refresh chat history when leaving the chat screen
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-      chatProvider.fetchChatHistory();
-    });
-    super.dispose();
-  }
-
   Widget promptContainer(String text) {
     return GestureDetector(
       onTap: () {
@@ -517,6 +616,8 @@ class _ChatScreenState extends State<ChatScreen> {
           setState(() {
             controller.text = text;
           });
+          // Dismiss keyboard when prompt is selected
+          _dismissKeyboard();
         }
       },
       child: Container(

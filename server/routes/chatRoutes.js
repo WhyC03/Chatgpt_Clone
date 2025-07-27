@@ -1,7 +1,7 @@
 // routes/chatRoutes.js
 const express = require('express');
 const router = express.Router();
-const { sendMessage, uploadImage, getUserChats, getChatById } = require('../controllers/chatController');
+const { sendMessage, uploadImage, getUserChats, getChatById, getAvailableModels, setModel } = require('../controllers/chatController');
 
 // Import multer configuration for file uploads
 const multer = require('multer');
@@ -63,7 +63,14 @@ router.post('/upload', upload.single('image'), (err, req, res, next) => {
   next();
 }, uploadImage);
 
+// Model management endpoints (MUST come before parameterized routes)
+router.get('/models', getAvailableModels);
+router.post('/set-model', setModel);
+
+// Get chat history for a user
 router.get('/history/:userId', getUserChats);
+
+// Get specific chat by ID (MUST come last)
 router.get('/:chatId', getChatById);
 
 module.exports = router;

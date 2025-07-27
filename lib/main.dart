@@ -1,4 +1,3 @@
-
 import 'package:chatgpt_clone/provider/chat_provider.dart';
 import 'package:chatgpt_clone/screens/onboarding_screen.dart';
 import 'package:chatgpt_clone/utils/app_theme.dart';
